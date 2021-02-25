@@ -1,0 +1,178 @@
+---
+title: "Getting and Cleaning Data Course Project"
+author: "Liam"
+date: "25/02/2021"
+output: github_document
+---
+
+This readme document liblcontains a detailed explanation of the data and the code used to tidy the data. The same code can be found in  'run_analysis.R' in this repo.
+
+## Overview of the data
+
+The zip file contains data from experiments that have been carried out with a group of **30 volunteers** within an age bracket of 19-48 years. Each person performed **six activities** (WALKING, WALKING_UPSTAIRS, WALKING_DOWNSTAIRS, SITTING, STANDING, LAYING) wearing a smartphone (Samsung Galaxy S II) on the waist. Using its embedded accelerometer and gyroscope, we captured 3-axial linear acceleration and 3-axial angular velocity at a constant rate of 50Hz. The obtained dataset has been randomly partitioned into two sets, where **70% (21)** of the volunteers was selected for generating the **training data** and **30% (9)** the **test data**
+
+The folder (test and training) consists of
+ * `X_test.txt`/`train.txt`: which contains the *readings*
+ * `y_test.txt`/`train.txt`: whhich contains *activity* numbers corosponding to the data set 
+ * `subject_test.txt`/`train.txt` which contains the *subject* number corosponding to the data set
+
+Label files are also provided:
+
+ * `features.txt`: List of all *features* of the data sets.
+ * `activity_labels.txt`: Links the activity numbers with their activity name.
+
+The inertial signals were not looked at for the purposes of the analysis
+
+## Preparing the data 
+
+Load libraries and set up the working environment
+```{r, results = 'hide'}
+# Load packages
+
+library(dplyr)
+
+# Create data folder 
+
+if(!file.exists("./data"))
+{
+        dir.create("./data")
+}
+```
+
+
+Download file and unzip 
+```{r, results = 'hide'}
+url <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+
+zipfile <- "./data/dataset.zip"
+outfile <- "./data"
+
+if(!file.exists("./data/UCI HAR Dataset")){
+        download.file(url, zipfile, method = "curl")
+        unzip(zipfile, exdir = outfile)
+        file.remove("./data/dataset.zip")
+}
+```
+
+Read the source data and add the headers. The readings variable names were added using the feature_names.txt file
+```{r, results='hide'}
+## load lables sets
+activity_names <- read.table("./data/UCI HAR Dataset/activity_labels.txt")
+feature_names <- read.table("./data/UCI HAR Dataset/features.txt")
+colnames(activity_names) <- c("classlables", "activitynames")
+colnames(feature_names) <- c("n", "features")
+
+## load test data
+readings_test <- read.table("./data/UCI HAR Dataset/test/X_test.txt")
+activities_test <- read.table("./data/UCI HAR Dataset/test/y_test.txt")
+subject_test <- read.table("./data/UCI HAR Dataset/test/subject_test.txt")
+
+## load train data
+readings_train <- read.table("./data/UCI HAR Dataset/train/X_train.txt")
+activities_train <- read.table("./data/UCI HAR Dataset/train/y_train.txt")
+subject_train <- read.table("./data/UCI HAR Dataset/train/subject_train.txt")
+
+### add col names
+colnames(readings_test) <- c(feature_names$features)
+colnames(activities_test) <- c("activity")
+colnames(subject_test) <- c("subject")
+colnames(readings_train) <- c(feature_names$features)
+colnames(activities_train) <- c("activity")
+colnames(subject_train) <- c("subject")
+```
+
+## Tidying the data
+
+This section covers the code that :
+
+ * Merges the training and the test sets to create one data set.
+ * Extracts only the measurements on the mean and standard deviation for each measurement. 
+ * Uses descriptive activity names to name the activities in the data set
+ * Appropriately labels the data set with descriptive variable names. 
+ * From the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+
+### 1. Merges the training and the test sets to create one data set.
+
+The data from X_test/train.txt contains the 'readings'. Here the the corosponding 'readings' datarames are merged row wise with r bind. *The source data frames are removed from the global environment as they are no longer needed and only clutter the workspace.*
+```{r, results = 'hide'}
+readings <- rbind(readings_test, readings_train)
+rm(readings_test, readings_train)
+
+```
+
+The same is done for the corosponding activity labels and subject labels
+```{r, results = 'hide'}
+activities <- rbind(activities_test, activities_train)
+rm(activities_test, activities_train)
+
+subject <- rbind(subject_test, subject_train)
+rm(subject_test, subject_train)
+
+```
+
+Now we have 3 data frames, the subject 'lables', the activity 'labels' and the readings for each individual observation. Each of these dataframes contains 10299 individual observations.
+
+The *subject*, *activities* and *readings* dataframes can now be merged into one single tidy dataset
+```{r, results = 'hide'}
+dataset <- cbind(subject, activities, readings)
+rm(subject, activities, readings)
+```
+
+### 2. Extracts only the measurements on the mean and standard deviation for each measurement. 
+
+Next the columns on the **mean** and **std deviation** for each measurment is extracted.
+```{r, results='hide'}
+datasetextract <- dataset %>% 
+        select(subject, activity, matches("std\\(|mean\\("))
+```
+
+### 3. Uses descriptive activity names to name the activities in the data set
+
+Next the labels for the activities are updated by using the data obtained from 'activity_names.txt'. This method uses subsetting as it is the simpilest method in this scenario.
+```{r, results='hide'}
+datasetextract$activity <- activity_names[datasetextract$activity, 2]
+```
+
+### 4. Appropriately labels the data set with descriptive variable names.
+
+Here the lables of the data set are renamed `gsub()` using *overly* descriptive names that are probably over the top for the real world but atleast you wont get confused. Make sure all the names were changed correctly with `str()`
+```{r, results='hide'}
+names(datasetextract) <- gsub("-", "", names(datasetextract))
+names(datasetextract) <- gsub("^t", "Time_", names(datasetextract))
+names(datasetextract) <- gsub("^f", "Frequency_", names(datasetextract))
+names(datasetextract) <- gsub("Body|BodyBody", "Body_", names(datasetextract)) 
+names(datasetextract) <- gsub("Acc", "Acceleration_", names(datasetextract))
+names(datasetextract) <- gsub("Gravity", "Gravity_", names(datasetextract))
+names(datasetextract) <- gsub("Gyro", "Gyroscope_", names(datasetextract))
+names(datasetextract) <- gsub("Jerk", "Jerk_", names(datasetextract))
+names(datasetextract) <- gsub("Mag", "Magnitude_", names(datasetextract))
+names(datasetextract) <- gsub("std\\(\\)", "standard_deviation_", names(datasetextract))
+names(datasetextract) <- gsub("mean\\(\\)", "mean ", names(datasetextract))
+names(datasetextract) <- gsub("X", "x-axis", names(datasetextract))
+names(datasetextract) <- gsub("Y", "y-axis", names(datasetextract))
+names(datasetextract) <- gsub("Z", "z-axis", names(datasetextract))
+str(datasetextract)
+```
+
+
+## 5. From the data set in step 4, creates a second, independent tidy data set 
+
+This tidy dataset should consist of the average of each variable for each activity and each subject.
+
+using `dplyr::group_by` the data is first grouped by activity and then by subject. The grouped data is the parsed to `summarise_all` to find the mean of of **all** the variables for each activity completed by each subject. Then the data is looked at and declared not only tidy, but pretty too   
+
+```{r}
+tidydf <- datasetextract %>%
+        group_by(activity, subject) %>%
+        summarise_all(mean)
+str(tidydf)
+tidydf
+```
+
+The data is tidy because:
+ * Each variable forms a column.
+ * Each observation forms a row.
+ * Each type of observational unit forms a table.
+
+:)
+
