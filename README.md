@@ -1,7 +1,7 @@
 Getting and Cleaning Data Course Project
 ================
 Liam
-25/02/2021
+26/02/2021
 
 This readme document liblcontains a detailed explanation of the data and
 the code used to tidy the data. The same code can be found in
